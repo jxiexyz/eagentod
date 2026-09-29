@@ -2,7 +2,10 @@
 """
 frontrun_trust_gate.py
 Frontrun Pro trust validation layer for eagent-scanner candidates.
-Validates: username history (no rebrands), smart follower count (min 5).
+Validates:
+- Project (<1k followers): min 3 smart followers, 0 username changes
+- Project (>=1k followers): min 5 smart followers, 0 username changes
+- CT Giveaway (KOL/person/giveaway tweet): min 100 smart followers, max 1 username change
 Returns enriched candidate data with wallet addresses for auto-reply.
 """
 
@@ -18,8 +21,16 @@ import frontrun_client
 CACHE_PATH = "/home/ubuntu/.hermes/scripts/frontrun_trust_cache.json"
 CACHE_TTL = 3600  # 1 hour
 
-MIN_SMART_FOLLOWERS = 5
-MAX_USERNAME_CHANGES = 0  # zero tolerance for rebrands
+MIN_SMART_FOLLOWERS_PROJECT_LOW_FOL = 3
+MIN_SMART_FOLLOWERS_PROJECT = 5
+MAX_USERNAME_CHANGES_PROJECT = 0
+
+MIN_SMART_FOLLOWERS_CT_GIVEAWAY = 100
+MAX_USERNAME_CHANGES_CT_GIVEAWAY = 1
+
+# Backward-compat defaults
+MIN_SMART_FOLLOWERS = MIN_SMART_FOLLOWERS_PROJECT
+MAX_USERNAME_CHANGES = MAX_USERNAME_CHANGES_PROJECT
 
 
 def _load_cache():
@@ -38,7 +49,38 @@ def _save_cache(cache):
         pass
 
 
-def validate_handle(handle: str) -> dict:
+def resolve_thresholds(
+    min_smart_followers: int = None,
+    max_username_changes: int = None,
+    followers: int = 0,
+    is_project: bool = True,
+    is_ct_giveaway: bool = False,
+) -> tuple:
+    """Resolve (min_smart_followers, max_username_changes) based on account type."""
+    if is_ct_giveaway:
+        target_sf = MIN_SMART_FOLLOWERS_CT_GIVEAWAY if min_smart_followers is None else min_smart_followers
+        target_changes = MAX_USERNAME_CHANGES_CT_GIVEAWAY if max_username_changes is None else max_username_changes
+    elif is_project:
+        if 0 < followers < 1000:
+            target_sf = MIN_SMART_FOLLOWERS_PROJECT_LOW_FOL if min_smart_followers is None else min_smart_followers
+        else:
+            target_sf = MIN_SMART_FOLLOWERS_PROJECT if min_smart_followers is None else min_smart_followers
+        target_changes = MAX_USERNAME_CHANGES_PROJECT if max_username_changes is None else max_username_changes
+    else:
+        target_sf = MIN_SMART_FOLLOWERS if min_smart_followers is None else min_smart_followers
+        target_changes = MAX_USERNAME_CHANGES if max_username_changes is None else max_username_changes
+
+    return target_sf, target_changes
+
+
+def validate_handle(
+    handle: str,
+    min_smart_followers: int = None,
+    max_username_changes: int = None,
+    followers: int = 0,
+    is_project: bool = True,
+    is_ct_giveaway: bool = False,
+) -> dict:
     """
     Validate a Twitter handle via Frontrun Pro.
     Returns:
@@ -57,11 +99,39 @@ def validate_handle(handle: str) -> dict:
     if not clean:
         return {"trusted": False, "reject_reason": "empty_handle"}
 
+    target_min_sf, target_max_changes = resolve_thresholds(
+        min_smart_followers=min_smart_followers,
+        max_username_changes=max_username_changes,
+        followers=followers,
+        is_project=is_project,
+        is_ct_giveaway=is_ct_giveaway,
+    )
+
     # Check cache first
     cache = _load_cache()
     cached = cache.get(clean)
     if cached and time.time() - cached.get("ts", 0) < CACHE_TTL:
-        return {**cached["result"], "cached": True}
+        raw_res = cached.get("result", {})
+        sf_count = raw_res.get("smart_follower_count", 0)
+        history_len = raw_res.get("username_changes", 0)
+        old_names = raw_res.get("old_usernames", [])
+
+        trusted = True
+        reject_reason = None
+        if history_len > target_max_changes:
+            old_str = ", ".join(old_names[:3])
+            reject_reason = f"rebrand:{old_str}"
+            trusted = False
+        elif sf_count < target_min_sf:
+            reject_reason = f"low_smart_followers:{sf_count}/{target_min_sf}"
+            trusted = False
+
+        return {
+            **raw_res,
+            "trusted": trusted,
+            "reject_reason": reject_reason,
+            "cached": True,
+        }
 
     result = {
         "trusted": False,
@@ -79,31 +149,20 @@ def validate_handle(handle: str) -> dict:
         history = frontrun_client.get_username_history(clean)
         result["username_changes"] = len(history)
         result["old_usernames"] = [h.get("oldTwitterUsername", "") for h in history]
-        if len(history) > MAX_USERNAME_CHANGES:
-            old_names = ", ".join(result["old_usernames"][:3])
-            result["reject_reason"] = f"rebrand:{old_names}"
-            _cache_result(cache, clean, result)
-            return result
     except Exception as e:
-        # Non-fatal: proceed without history check
         print(f"WARN: username_history failed for @{clean}: {e}", file=sys.stderr)
 
     # 2. Smart follower check
+    sf_error = None
     try:
         sf = frontrun_client.get_smart_followers(clean)
         result["smart_follower_count"] = len(sf)
         result["smart_followers"] = [
             s.get("twitter", s.get("name", "")) for s in sf[:10]
         ]
-        if len(sf) < MIN_SMART_FOLLOWERS:
-            result["reject_reason"] = f"low_smart_followers:{len(sf)}/{MIN_SMART_FOLLOWERS}"
-            _cache_result(cache, clean, result)
-            return result
     except Exception as e:
         print(f"WARN: smart_followers failed for @{clean}: {e}", file=sys.stderr)
-        result["reject_reason"] = f"smart_followers_error:{e}"
-        _cache_result(cache, clean, result)
-        return result
+        sf_error = e
 
     # 3. Wallet detection (bonus: auto-detect chain for reply drops)
     try:
@@ -116,8 +175,21 @@ def validate_handle(handle: str) -> dict:
     except Exception:
         pass  # non-fatal
 
-    # All checks passed
-    result["trusted"] = True
+    # Evaluate thresholds
+    if sf_error is not None:
+        result["reject_reason"] = f"smart_followers_error:{sf_error}"
+        result["trusted"] = False
+    elif result["username_changes"] > target_max_changes:
+        old_names = ", ".join(result["old_usernames"][:3])
+        result["reject_reason"] = f"rebrand:{old_names}"
+        result["trusted"] = False
+    elif result["smart_follower_count"] < target_min_sf:
+        result["reject_reason"] = f"low_smart_followers:{result['smart_follower_count']}/{target_min_sf}"
+        result["trusted"] = False
+    else:
+        result["trusted"] = True
+        result["reject_reason"] = None
+
     _cache_result(cache, clean, result)
     return result
 
@@ -132,11 +204,11 @@ def _cache_result(cache, handle, result):
     _save_cache(cache)
 
 
-def batch_validate(handles: list) -> dict:
+def batch_validate(handles: list, **kwargs) -> dict:
     """Validate multiple handles. Returns {handle: result}."""
     results = {}
     for h in handles:
-        results[h] = validate_handle(h)
+        results[h] = validate_handle(h, **kwargs)
         time.sleep(0.3)  # Rate limit courtesy
     return results
 

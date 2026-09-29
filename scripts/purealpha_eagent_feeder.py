@@ -348,11 +348,16 @@ def main():
             release_browser_lock()
 
 
-def _frontrun_validate(handle):
+def _frontrun_validate(handle, followers=0, is_project=True, is_ct_giveaway=False):
     """Validate handle via Frontrun Pro trust gate. Returns (trusted, result_dict)."""
     try:
         from frontrun_trust_gate import validate_handle
-        result = validate_handle(handle)
+        result = validate_handle(
+            handle,
+            followers=followers,
+            is_project=is_project,
+            is_ct_giveaway=is_ct_giveaway,
+        )
         return result.get("trusted", False), result
     except Exception as e:
         print(f"WARN: Frontrun trust gate failed for @{handle}: {e}", file=sys.stderr)
@@ -422,12 +427,33 @@ def _scan_candidates():
         name = item.get("name") or ""
         summary = item.get("why") or item.get("summary") or ""
         fol = item.get("fol", 0) or 0
+        kind = item.get("kind", "project")
+        source_feed = item.get("source_feed", "")
+        direct_tw = item.get("direct_tweet", "")
+
+        # --- DETERMINE TARGET TYPE ---
+        text_all = f"{name} {handle} {summary} {direct_tw}".lower()
+        has_giveaway_kw = any(k in text_all for k in ("giveaway", "give away", "giving away", "raffle"))
+
+        # CT Giveaway: from smart follower / KOL tweet, personal account, or non-project giveaway
+        is_ct_giveaway = (
+            kind in ("smart_follower_tweet", "person")
+            or source_feed == "985_kol_tweet"
+            or (has_giveaway_kw and kind != "project")
+        )
+        is_project = not is_ct_giveaway
 
         # --- FRONTRUN TRUST GATE ---
-        trusted, fr_result = _frontrun_validate(handle)
+        trusted, fr_result = _frontrun_validate(
+            handle,
+            followers=fol,
+            is_project=is_project,
+            is_ct_giveaway=is_ct_giveaway,
+        )
         if not trusted:
             reason = fr_result.get("reject_reason", "unknown")
-            print(f"SKIP @{handle}: Frontrun rejected ({reason})", file=sys.stderr)
+            target_type = "CT giveaway" if is_ct_giveaway else f"project (fol={fol})"
+            print(f"SKIP @{handle} [{target_type}]: Frontrun rejected ({reason})", file=sys.stderr)
             continue
 
         if item.get("direct_tweet"):

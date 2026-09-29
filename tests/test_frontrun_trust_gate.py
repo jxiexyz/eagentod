@@ -53,6 +53,69 @@ def test_pass_exactly_5_sf():
         assert r["trusted"]
 
 
+def test_project_under_1k_fol_passes_with_3_sf():
+    with patch("frontrun_client.get_username_history", return_value=[]), \
+         patch("frontrun_client.get_smart_followers", return_value=_mock_sf(3)), \
+         patch("frontrun_client.get_wallets", return_value=[]):
+        r = frontrun_trust_gate.validate_handle("earlyproj", followers=500, is_project=True)
+        assert r["trusted"]
+        assert r["reject_reason"] is None
+
+
+def test_project_under_1k_fol_fails_under_3_sf():
+    with patch("frontrun_client.get_username_history", return_value=[]), \
+         patch("frontrun_client.get_smart_followers", return_value=_mock_sf(2)), \
+         patch("frontrun_client.get_wallets", return_value=[]):
+        r = frontrun_trust_gate.validate_handle("earlyproj_scam", followers=500, is_project=True)
+        assert not r["trusted"]
+        assert "low_smart_followers:2/3" in r["reject_reason"]
+
+
+def test_project_over_1k_fol_requires_5_sf():
+    with patch("frontrun_client.get_username_history", return_value=[]), \
+         patch("frontrun_client.get_smart_followers", return_value=_mock_sf(4)), \
+         patch("frontrun_client.get_wallets", return_value=[]):
+        r = frontrun_trust_gate.validate_handle("midproj", followers=2000, is_project=True)
+        assert not r["trusted"]
+        assert "low_smart_followers:4/5" in r["reject_reason"]
+
+
+def test_project_rejects_any_rebrand():
+    with patch("frontrun_client.get_username_history", return_value=_mock_history(["old_name"])), \
+         patch("frontrun_client.get_smart_followers", return_value=_mock_sf(10)), \
+         patch("frontrun_client.get_wallets", return_value=[]):
+        r = frontrun_trust_gate.validate_handle("rebranded_proj", followers=500, is_project=True)
+        assert not r["trusted"]
+        assert "rebrand" in r["reject_reason"]
+
+
+def test_ct_giveaway_requires_100_sf():
+    with patch("frontrun_client.get_username_history", return_value=[]), \
+         patch("frontrun_client.get_smart_followers", return_value=_mock_sf(99)), \
+         patch("frontrun_client.get_wallets", return_value=[]):
+        r = frontrun_trust_gate.validate_handle("ct_kol_small", is_ct_giveaway=True)
+        assert not r["trusted"]
+        assert "low_smart_followers:99/100" in r["reject_reason"]
+
+
+def test_ct_giveaway_passes_with_100_sf_and_1_rename():
+    with patch("frontrun_client.get_username_history", return_value=_mock_history(["old_handle_once"])), \
+         patch("frontrun_client.get_smart_followers", return_value=_mock_sf(100)), \
+         patch("frontrun_client.get_wallets", return_value=[]):
+        r = frontrun_trust_gate.validate_handle("ct_kol_good", is_ct_giveaway=True)
+        assert r["trusted"]
+        assert r["reject_reason"] is None
+
+
+def test_ct_giveaway_fails_with_more_than_1_rename():
+    with patch("frontrun_client.get_username_history", return_value=_mock_history(["name1", "name2"])), \
+         patch("frontrun_client.get_smart_followers", return_value=_mock_sf(150)), \
+         patch("frontrun_client.get_wallets", return_value=[]):
+        r = frontrun_trust_gate.validate_handle("ct_kol_serial_rebrander", is_ct_giveaway=True)
+        assert not r["trusted"]
+        assert "rebrand" in r["reject_reason"]
+
+
 def test_fail_open_on_error():
     with patch("frontrun_client.get_username_history", side_effect=Exception("timeout")), \
          patch("frontrun_client.get_smart_followers", return_value=_mock_sf(10)), \
