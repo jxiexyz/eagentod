@@ -1,0 +1,10 @@
+[
+  {
+    "name": "session",
+    "value": "your_purealpha_session_cookie_value_here",
+    "domain": ".purealpha.app",
+    "path": "/",
+    "secure": true,
+    "httpOnly": true
+  }
+]

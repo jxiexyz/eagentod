@@ -1,0 +1,47 @@
+"""
+airdrop_identity.py.example
+Template file for multi-account web3 & airdrop identity.
+Copy to ~/airdrop_identity.py and fill in your actual wallet & social details.
+"""
+
+IDENTITY = {
+    "main": {
+        "full_name": "John Doe",
+        "first_name": "John",
+        "last_name": "Doe",
+        "email": "user@example.com",
+        "email_app_password": "",
+        "phone_number": "+1234567890",
+        "password_normal": "StrongPassword123!",
+        "password_symbol": "StrongPassword123!#",
+        "password_long": "SuperStrongLongPassword123!#$",
+        "x_handle": "your_twitter_handle",
+        "telegram_handle": "your_tg_handle",
+        "discord_username": "your_discord_tag",
+        "discord_handle": "your_discord_handle",
+        "linkedin": "https://linkedin.com/in/yourprofile",
+        # Wallets
+        "evm_wallet": "0x0000000000000000000000000000000000000000",
+        "evm_private_key": "",
+        "sol_wallet": "",
+        "near_wallet": "",
+        "btc_wallet": "",
+        "zec_wallet": "",
+        "zec_transparent": "",
+        # Exchange UIDs
+        "binance_uid": "",
+        "bybit_uid": "",
+        "okx_uid": "",
+        "bitget_uid": "",
+        "mexc_uid": "",
+        "gateio_uid": "",
+        "kucoin_uid": "",
+        "bingx_uid": "",
+        "lbank_uid": "",
+        "bitmart_uid": "",
+        "AGENTON_API_KEY": ""
+    },
+    "tuyul": [
+        # Secondary farming accounts (optional)
+    ]
+}

@@ -1,0 +1,13 @@
+{
+  "name": "eagent-scanner",
+  "schedule": "every 15m",
+  "script": "purealpha_eagent_feeder.py",
+  "prompt": "Kamu autonomous eagent scanner.\nBACA SCRIPT OUTPUT DI ATAS.\nJika \"NO_TASKS\" atau \"LOCKED\" -> jawab [SILENT] dan selesai.\nJika ada TASKS_FOUND -> evaluasi kandidat sesuai skill eagent-scanner dan penggarap-agent.\nJika scam/spam/engagement farming/sudah diproses -> jalankan: python3 ~/.hermes/scripts/eagent_precheck.py skip \"<username>\" \"<alasan>\".\nJika valid actionable (form/WL/mint/drop address) -> garap, lapor via python3 ~/.hermes/scripts/post_eagent_report.py, lalu mark done via python3 ~/.hermes/scripts/eagent_precheck.py mark \"<username>\".\nDi akhir cycle: WAJIB cleanup tab dan release browser lock:\npython3 /home/ubuntu/.hermes/scripts/cleanup_tabs.py --force --max-age 0\npython3 -c \"import sys; sys.path.insert(0,'/home/ubuntu/.hermes/scripts'); from browser_lock import release_browser_lock; release_browser_lock()\"",
+  "skills": [
+    "eagent-scanner",
+    "penggarap-agent"
+  ],
+  "skill": "eagent-scanner",
+  "deliver": "local",
+  "no_agent": false
+}

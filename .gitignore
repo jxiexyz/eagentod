@@ -1,0 +1,33 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+env/
+venv/
+.venv/
+ENV/
+
+# Pytest
+.pytest_cache/
+
+# Local sensitive configs
+.env
+*.env
+airdrop_identity.py
+purealpha_cookies.json
+.rettiwt_key
+
+# Runtime local states
+eagent_state.json
+eagent_queue.json
+nft_watchlist.json
+*.lock
+
+# Logs
+*.log
