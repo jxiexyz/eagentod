@@ -52,7 +52,7 @@ def _save_cache(cache):
 def resolve_thresholds(
     min_smart_followers: int = None,
     max_username_changes: int = None,
-    followers: int = 0,
+    followers: int = None,
     is_project: bool = True,
     is_ct_giveaway: bool = False,
 ) -> tuple:
@@ -61,7 +61,7 @@ def resolve_thresholds(
         target_sf = MIN_SMART_FOLLOWERS_CT_GIVEAWAY if min_smart_followers is None else min_smart_followers
         target_changes = MAX_USERNAME_CHANGES_CT_GIVEAWAY if max_username_changes is None else max_username_changes
     elif is_project:
-        if 0 <= followers < 1000:
+        if followers is not None and 0 <= followers < 1000:
             target_sf = MIN_SMART_FOLLOWERS_PROJECT_LOW_FOL if min_smart_followers is None else min_smart_followers
         else:
             target_sf = MIN_SMART_FOLLOWERS_PROJECT if min_smart_followers is None else min_smart_followers
@@ -77,7 +77,7 @@ def validate_handle(
     handle: str,
     min_smart_followers: int = None,
     max_username_changes: int = None,
-    followers: int = 0,
+    followers: int = None,
     is_project: bool = True,
     is_ct_giveaway: bool = False,
 ) -> dict:
