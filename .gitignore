@@ -21,13 +21,16 @@ ENV/
 *.env
 airdrop_identity.py
 purealpha_cookies.json
+frontrun_cookies.json
 .rettiwt_key
 
 # Runtime local states
 eagent_state.json
 eagent_queue.json
 nft_watchlist.json
+frontrun_trust_cache.json
 *.lock
+*.guard
 
 # Logs
 *.log

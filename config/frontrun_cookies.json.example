@@ -1,0 +1,14 @@
+[
+  {
+    "name": "__Secure-frontrun.session_token",
+    "value": "YOUR_SESSION_TOKEN_HERE",
+    "domain": ".frontrun.pro",
+    "path": "/"
+  },
+  {
+    "name": "__Secure-frontrun.session_token_domain_migrated",
+    "value": "1",
+    "domain": ".frontrun.pro",
+    "path": "/"
+  }
+]

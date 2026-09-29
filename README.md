@@ -2,7 +2,7 @@
 
 Fully autonomous LLM-driven airdrop hunter, waitlist scanner, and execution engine designed for **Hermes Agent**.
 
-Monitors **PureAlpha.app** (hot & new windows) and **985monitor.xyz** (smart follower live events) for high-signal opportunities:
+Monitors **PureAlpha.app** (hot & new windows) and **985monitor.xyz** (smart follower live events) with **Frontrun Pro** trust verification (anti-rebrand check, min 5 smart followers, wallet detection) for high-signal opportunities:
 - Web waitlist & registration forms (Google Forms, Typeform, Tally, Premint, Alphabot)
 - Verified whitelist (WL) & Guaranteed (GTD) NFT minting
 - Direct creator/founder wallet-drop replies
@@ -138,6 +138,9 @@ IDENTITY = {
 
 #### C. PureAlpha Session Cookies (`~/.hermes/purealpha_cookies.json`)
 Export your session cookies from purealpha.app and save them to `~/.hermes/purealpha_cookies.json`.
+
+#### D. Frontrun Pro Session Cookies (`~/.hermes/frontrun_cookies.json`)
+Export your session cookies from frontrun.pro (`__Secure-frontrun.session_token`) and save to `~/.hermes/frontrun_cookies.json`.
 
 ---
 

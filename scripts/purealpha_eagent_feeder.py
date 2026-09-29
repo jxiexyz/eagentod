@@ -13,17 +13,12 @@ import time
 import subprocess
 import urllib.request
 
-SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
-HERMES_SCRIPTS_DIR = os.path.expanduser("~/.hermes/scripts")
-
-for p in [SCRIPTS_DIR, HERMES_SCRIPTS_DIR, os.path.expanduser("~/purealpha"), "/home/ubuntu/purealpha"]:
-    if os.path.exists(p) and p not in sys.path:
-        sys.path.insert(0, p)
-
+sys.path.insert(0, "/home/ubuntu/purealpha")
+sys.path.insert(0, "/home/ubuntu/.hermes/scripts")
 from purealpha_client import fetch_feed
 
-STATE_FILE = os.environ.get("EAGENT_STATE_FILE", os.path.join(HERMES_SCRIPTS_DIR, "eagent_state.json"))
-QUEUE_FILE = os.environ.get("EAGENT_QUEUE_FILE", os.path.join(HERMES_SCRIPTS_DIR, "eagent_queue.json"))
+STATE_FILE = "/home/ubuntu/.hermes/scripts/eagent_state.json"
+QUEUE_FILE = os.environ.get("EAGENT_QUEUE_FILE", "/home/ubuntu/.hermes/scripts/eagent_queue.json")
 EAGENT_QUEUE_FILE = QUEUE_FILE  # alias
 MAX_PER_CYCLE = 3
 RETTIWT_ENV = os.path.expanduser("~/.hermes/.env_rettiwt")
@@ -111,7 +106,7 @@ def _get_rettiwt_key():
                     key = line.strip().split("=", 1)[1]
                     break
     if not key:
-        alt_key_path = os.path.join(SCRIPTS_DIR, ".rettiwt_key")
+        alt_key_path = "/home/ubuntu/hermesfull/scripts/.rettiwt_key"
         if os.path.exists(alt_key_path):
             with open(alt_key_path) as f:
                 key = f.read().strip()
@@ -286,6 +281,8 @@ def main():
                         "followers": t.get("followers", 0),
                         "insiders": t.get("insiders", 0),
                         "smart_followers": t.get("smart_followers", []),
+                        "fr_smart_count": t.get("fr_smart_count", 0),
+                        "fr_wallets": t.get("fr_wallets", {}),
                         "summary": t.get("summary", ""),
                         "matched_keywords": t.get("matched_keywords", []),
                         "has_form_url": t.get("has_form_url", False),
@@ -330,10 +327,13 @@ def main():
             kw_str = ", ".join(t["matched_keywords"]) if t.get("matched_keywords") else "form_url_detected"
             feed_label = "985monitor" if "985" in t.get("source_feed", "") else "PureAlpha"
             print(f"[{i}] @{t['handle']} ({t.get('name','')}) [{feed_label}]")
-            print(f"    Followers: {t.get('followers',0)} | Insiders: {t.get('insiders',0)}")
+            print(f"    Followers: {t.get('followers',0)} | Insiders: {t.get('insiders',0)} | FrontrunSF: {t.get('fr_smart_count', '?')}")
             if t.get("smart_followers"):
-                sf_str = ", ".join(f"@{s}" for s in t["smart_followers"][:3])
+                sf_str = ", ".join(f"@{s}" for s in t["smart_followers"][:5])
                 print(f"    SmartFollower: {sf_str}")
+            if t.get("fr_wallets"):
+                wl_str = ", ".join(f"{k}:{v[:10]}..." for k, v in t["fr_wallets"].items())
+                print(f"    Wallets: {wl_str}")
             print(f"    Match ({t.get('source','')}): {kw_str}")
             print(f"    Summary: {t.get('summary','')}")
             if t.get("tweet_text"):
@@ -348,8 +348,22 @@ def main():
             release_browser_lock()
 
 
+def _frontrun_validate(handle):
+    """Validate handle via Frontrun Pro trust gate. Returns (trusted, result_dict)."""
+    try:
+        from frontrun_trust_gate import validate_handle
+        result = validate_handle(handle)
+        return result.get("trusted", False), result
+    except Exception as e:
+        print(f"WARN: Frontrun trust gate failed for @{handle}: {e}", file=sys.stderr)
+        # Fail-open: allow candidate through if Frontrun is down
+        return True, {"trusted": True, "reject_reason": f"gate_error:{e}",
+                       "smart_follower_count": 0, "smart_followers": [],
+                       "username_changes": 0, "old_usernames": [], "wallets": {}}
+
+
 def _scan_candidates():
-    """Scan PureAlpha + 985monitor, return list task actionable (max 5)."""
+    """Scan PureAlpha + 985monitor, validate via Frontrun trust gate, return actionable tasks (max 5)."""
     state = load_eagent_state()
     seen_handles = set()
     items = []
@@ -409,6 +423,13 @@ def _scan_candidates():
         summary = item.get("why") or item.get("summary") or ""
         fol = item.get("fol", 0) or 0
 
+        # --- FRONTRUN TRUST GATE ---
+        trusted, fr_result = _frontrun_validate(handle)
+        if not trusted:
+            reason = fr_result.get("reject_reason", "unknown")
+            print(f"SKIP @{handle}: Frontrun rejected ({reason})", file=sys.stderr)
+            continue
+
         if item.get("direct_tweet"):
             direct_tw = item.get("direct_tweet", "")
             matched_kw = match_actionable(direct_tw)
@@ -438,12 +459,21 @@ def _scan_candidates():
                         tweet_text = tw[:200]
                         break
 
+        # Enrich with Frontrun data
+        fr_sf = fr_result.get("smart_followers", [])
+        fr_wallets = fr_result.get("wallets", {})
+        # Merge smart followers: feeder source + Frontrun source (dedupe)
+        existing_sf = item.get("smart_followers", [])
+        merged_sf = list(dict.fromkeys(existing_sf + fr_sf))[:10]
+
         tasks.append({
             "handle": handle,
             "name": name,
             "followers": fol,
             "insiders": hot_count,
-            "smart_followers": item.get("smart_followers", []),
+            "smart_followers": merged_sf,
+            "fr_smart_count": fr_result.get("smart_follower_count", 0),
+            "fr_wallets": fr_wallets,
             "summary": summary[:200],
             "matched_keywords": matched_kw[:3],
             "has_form_url": has_form,
