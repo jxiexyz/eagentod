@@ -8,6 +8,13 @@ sys.path.insert(0, "/home/ubuntu/.hermes/scripts")
 import moni_trust_gate
 
 
+@pytest.fixture(autouse=True)
+def isolate_cache(tmp_path):
+    cache_file = tmp_path / "moni_cache.json"
+    with patch("moni_trust_gate.CACHE_PATH", str(cache_file)):
+        yield
+
+
 def _mock_info(sf_count=10, changes=0, followers=5000, old_names=None, observed_id=123):
     old_names = old_names or []
     return {
@@ -89,10 +96,27 @@ def test_project_rejects_any_rebrand():
         assert "rebrand" in r["reject_reason"]
 
 
-def test_ct_giveaway_requires_100sf():
-    info = _mock_info(sf_count=99, changes=0, followers=10000)
+def test_ct_giveaway_clean_requires_50sf():
+    info = _mock_info(sf_count=49, changes=0, followers=10000)
     with patch("moni_client.get_account_info", return_value=info):
         r = moni_trust_gate.validate_handle("ct_kol_small", is_ct_giveaway=True)
+        assert not r["trusted"]
+        assert "low_smart_followers:49/50" in r["reject_reason"]
+
+
+def test_ct_giveaway_clean_passes_50sf():
+    info = _mock_info(sf_count=50, changes=0, followers=10000)
+    with patch("moni_client.get_account_info", return_value=info), \
+         patch("moni_client.get_smart_followers", return_value={"items": []}):
+        r = moni_trust_gate.validate_handle("ct_kol_clean_50", is_ct_giveaway=True)
+        assert r["trusted"]
+        assert r["reject_reason"] is None
+
+
+def test_ct_giveaway_1rename_requires_100sf():
+    info = _mock_info(sf_count=99, changes=1, followers=10000, old_names=["old_name_once"])
+    with patch("moni_client.get_account_info", return_value=info):
+        r = moni_trust_gate.validate_handle("ct_kol_renamed_under_100", is_ct_giveaway=True)
         assert not r["trusted"]
         assert "low_smart_followers:99/100" in r["reject_reason"]
 

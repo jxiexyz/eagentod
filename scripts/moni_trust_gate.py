@@ -25,7 +25,9 @@ MIN_SMART_FOLLOWERS_PROJECT_LOW_FOL = 3
 MIN_SMART_FOLLOWERS_PROJECT = 5
 MAX_USERNAME_CHANGES_PROJECT = 0
 
-MIN_SMART_FOLLOWERS_CT_GIVEAWAY = 100
+MIN_SMART_FOLLOWERS_CT_GIVEAWAY_CLEAN = 50
+MIN_SMART_FOLLOWERS_CT_GIVEAWAY_RENAMED = 100
+MIN_SMART_FOLLOWERS_CT_GIVEAWAY = MIN_SMART_FOLLOWERS_CT_GIVEAWAY_RENAMED
 MAX_USERNAME_CHANGES_CT_GIVEAWAY = 1
 
 # Backward-compat defaults
@@ -64,11 +66,17 @@ def resolve_thresholds(
     followers: Optional[int] = None,
     is_project: bool = True,
     is_ct_giveaway: bool = False,
+    username_changes: Optional[int] = None,
 ) -> Tuple[int, int]:
     """Resolve (min_smart_followers, max_username_changes) based on account type."""
     if is_ct_giveaway:
-        target_sf = MIN_SMART_FOLLOWERS_CT_GIVEAWAY if min_smart_followers is None else min_smart_followers
         target_changes = MAX_USERNAME_CHANGES_CT_GIVEAWAY if max_username_changes is None else max_username_changes
+        if min_smart_followers is not None:
+            target_sf = min_smart_followers
+        elif username_changes is not None and username_changes == 0:
+            target_sf = MIN_SMART_FOLLOWERS_CT_GIVEAWAY_CLEAN
+        else:
+            target_sf = MIN_SMART_FOLLOWERS_CT_GIVEAWAY_RENAMED
     elif is_project:
         if followers is not None and 0 <= followers < 1000:
             target_sf = MIN_SMART_FOLLOWERS_PROJECT_LOW_FOL if min_smart_followers is None else min_smart_followers
@@ -115,16 +123,17 @@ def validate_handle(
         raw_res = cached.get("result", {})
         cached_followers = raw_res.get("followers", followers)
         eff_followers = followers if followers is not None else cached_followers
+        history_len = raw_res.get("username_changes", 0)
         target_min_sf, target_max_changes = resolve_thresholds(
             min_smart_followers=min_smart_followers,
             max_username_changes=max_username_changes,
             followers=eff_followers,
             is_project=is_project,
             is_ct_giveaway=is_ct_giveaway,
+            username_changes=history_len,
         )
 
         sf_count = raw_res.get("smart_follower_count", 0)
-        history_len = raw_res.get("username_changes", 0)
         old_names = raw_res.get("old_usernames", [])
 
         trusted = True
@@ -166,6 +175,8 @@ def validate_handle(
     # Follower count fallback from Moni if not provided
     moni_followers = info.get("followersCount")
     eff_followers = followers if followers is not None else moni_followers
+    username_changes = info.get("usernameChangeCount", 0) or 0
+    sf_count = info.get("smartFollowersCount", 0) or 0
 
     # Resolve thresholds
     target_min_sf, target_max_changes = resolve_thresholds(
@@ -174,10 +185,8 @@ def validate_handle(
         followers=eff_followers,
         is_project=is_project,
         is_ct_giveaway=is_ct_giveaway,
+        username_changes=username_changes,
     )
-
-    sf_count = info.get("smartFollowersCount", 0) or 0
-    username_changes = info.get("usernameChangeCount", 0) or 0
     raw_changes = info.get("usernameChanges") or []
     old_usernames = [
         c.get("oldUsername") or c.get("newUsername") or ""
