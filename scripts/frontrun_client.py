@@ -64,18 +64,24 @@ def get_twitter_info(handle: str) -> Dict[str, Any]:
 def get_smart_followers(handle: str) -> List[Dict[str, Any]]:
     clean_handle = handle.lstrip("@").strip()
     res = req(f"/api/v1/twitter/{clean_handle}/smart-followers")
+    if "error" in res:
+        raise RuntimeError(f"Frontrun API error: {res.get('error')} - {res.get('detail')}")
     return res.get("data", {}).get("smartFollowers", [])
 
 
 def get_username_history(handle: str) -> List[Dict[str, Any]]:
     clean_handle = handle.lstrip("@").strip()
     res = req(f"/api/v1/twitter/{clean_handle}/username-history")
+    if "error" in res:
+        raise RuntimeError(f"Frontrun API error: {res.get('error')} - {res.get('detail')}")
     return res.get("data", {}).get("usernameHistory", [])
 
 
 def get_wallets(handle: str) -> List[Dict[str, Any]]:
     clean_handle = handle.lstrip("@").strip()
     res = req(f"/api/v4/twitter/{clean_handle}/wallets")
+    if "error" in res:
+        raise RuntimeError(f"Frontrun API error: {res.get('error')} - {res.get('detail')}")
     return res.get("data", {}).get("wallets", [])
 
 
