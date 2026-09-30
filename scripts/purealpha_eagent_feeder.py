@@ -281,8 +281,10 @@ def main():
                         "followers": t.get("followers", 0),
                         "insiders": t.get("insiders", 0),
                         "smart_followers": t.get("smart_followers", []),
-                        "fr_smart_count": t.get("fr_smart_count", 0),
-                        "fr_wallets": t.get("fr_wallets", {}),
+                        "moni_smart_count": t.get("moni_smart_count", t.get("fr_smart_count", 0)),
+                        "moni_wallets": t.get("moni_wallets", t.get("fr_wallets", {})),
+                        "fr_smart_count": t.get("moni_smart_count", t.get("fr_smart_count", 0)),
+                        "fr_wallets": t.get("moni_wallets", t.get("fr_wallets", {})),
                         "summary": t.get("summary", ""),
                         "matched_keywords": t.get("matched_keywords", []),
                         "has_form_url": t.get("has_form_url", False),
@@ -326,13 +328,15 @@ def main():
         for i, t in enumerate(tasks, 1):
             kw_str = ", ".join(t["matched_keywords"]) if t.get("matched_keywords") else "form_url_detected"
             feed_label = "985monitor" if "985" in t.get("source_feed", "") else "PureAlpha"
+            sf_count = t.get("moni_smart_count", t.get("fr_smart_count", "?"))
             print(f"[{i}] @{t['handle']} ({t.get('name','')}) [{feed_label}]")
-            print(f"    Followers: {t.get('followers',0)} | Insiders: {t.get('insiders',0)} | FrontrunSF: {t.get('fr_smart_count', '?')}")
+            print(f"    Followers: {t.get('followers',0)} | Insiders: {t.get('insiders',0)} | MoniSF: {sf_count}")
             if t.get("smart_followers"):
                 sf_str = ", ".join(f"@{s}" for s in t["smart_followers"][:5])
                 print(f"    SmartFollower: {sf_str}")
-            if t.get("fr_wallets"):
-                wl_str = ", ".join(f"{k}:{v[:10]}..." for k, v in t["fr_wallets"].items())
+            wallets = t.get("moni_wallets", t.get("fr_wallets", {}))
+            if wallets:
+                wl_str = ", ".join(f"{k}:{v[:10]}..." for k, v in wallets.items())
                 print(f"    Wallets: {wl_str}")
             print(f"    Match ({t.get('source','')}): {kw_str}")
             print(f"    Summary: {t.get('summary','')}")
@@ -348,10 +352,10 @@ def main():
             release_browser_lock()
 
 
-def _frontrun_validate(handle, followers=0, is_project=True, is_ct_giveaway=False):
-    """Validate handle via Frontrun Pro trust gate. Returns (trusted, result_dict)."""
+def _moni_validate(handle, followers=0, is_project=True, is_ct_giveaway=False):
+    """Validate handle via Moni API trust gate. Returns (trusted, result_dict)."""
     try:
-        from frontrun_trust_gate import validate_handle
+        from moni_trust_gate import validate_handle
         result = validate_handle(
             handle,
             followers=followers,
@@ -360,11 +364,15 @@ def _frontrun_validate(handle, followers=0, is_project=True, is_ct_giveaway=Fals
         )
         return result.get("trusted", False), result
     except Exception as e:
-        print(f"WARN: Frontrun trust gate failed for @{handle}: {e}", file=sys.stderr)
-        # Fail-open: allow candidate through if Frontrun is down
+        print(f"WARN: Moni trust gate failed for @{handle}: {e}", file=sys.stderr)
+        # Fail-open: allow candidate through if Moni is down
         return True, {"trusted": True, "reject_reason": f"gate_error:{e}",
                        "smart_follower_count": 0, "smart_followers": [],
                        "username_changes": 0, "old_usernames": [], "wallets": {}}
+
+
+# Alias for backward-compat
+_frontrun_validate = _moni_validate
 
 
 def _scan_candidates():
@@ -443,17 +451,17 @@ def _scan_candidates():
         )
         is_project = not is_ct_giveaway
 
-        # --- FRONTRUN TRUST GATE ---
-        trusted, fr_result = _frontrun_validate(
+        # --- MONI TRUST GATE ---
+        trusted, moni_result = _moni_validate(
             handle,
             followers=fol,
             is_project=is_project,
             is_ct_giveaway=is_ct_giveaway,
         )
         if not trusted:
-            reason = fr_result.get("reject_reason", "unknown")
+            reason = moni_result.get("reject_reason", "unknown")
             target_type = "CT giveaway" if is_ct_giveaway else f"project (fol={fol})"
-            print(f"SKIP @{handle} [{target_type}]: Frontrun rejected ({reason})", file=sys.stderr)
+            print(f"SKIP @{handle} [{target_type}]: Moni rejected ({reason})", file=sys.stderr)
             continue
 
         if item.get("direct_tweet"):
@@ -485,12 +493,12 @@ def _scan_candidates():
                         tweet_text = tw[:200]
                         break
 
-        # Enrich with Frontrun data
-        fr_sf = fr_result.get("smart_followers", [])
-        fr_wallets = fr_result.get("wallets", {})
-        # Merge smart followers: feeder source + Frontrun source (dedupe)
+        # Enrich with Moni data
+        moni_sf = moni_result.get("smart_followers", [])
+        moni_wallets = moni_result.get("wallets", {})
+        # Merge smart followers: feeder source + Moni source (dedupe)
         existing_sf = item.get("smart_followers", [])
-        merged_sf = list(dict.fromkeys(existing_sf + fr_sf))[:10]
+        merged_sf = list(dict.fromkeys(existing_sf + moni_sf))[:10]
 
         tasks.append({
             "handle": handle,
@@ -498,8 +506,10 @@ def _scan_candidates():
             "followers": fol,
             "insiders": hot_count,
             "smart_followers": merged_sf,
-            "fr_smart_count": fr_result.get("smart_follower_count", 0),
-            "fr_wallets": fr_wallets,
+            "moni_smart_count": moni_result.get("smart_follower_count", 0),
+            "moni_wallets": moni_wallets,
+            "fr_smart_count": moni_result.get("smart_follower_count", 0),
+            "fr_wallets": moni_wallets,
             "summary": summary[:200],
             "matched_keywords": matched_kw[:3],
             "has_form_url": has_form,
