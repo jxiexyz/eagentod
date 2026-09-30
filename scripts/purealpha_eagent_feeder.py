@@ -21,7 +21,6 @@ STATE_FILE = "/home/ubuntu/.hermes/scripts/eagent_state.json"
 QUEUE_FILE = os.environ.get("EAGENT_QUEUE_FILE", "/home/ubuntu/.hermes/scripts/eagent_queue.json")
 EAGENT_QUEUE_FILE = QUEUE_FILE  # alias
 MAX_PER_CYCLE = 3
-RETTIWT_ENV = os.path.expanduser("~/.hermes/.env_rettiwt")
 
 
 def load_json(path, default=None):
@@ -95,22 +94,6 @@ def match_actionable(text):
 def has_form_url(text):
     """Check if text contains known form/portal URL patterns."""
     return any(re.search(pat, text, re.I) for pat in FORM_URL_PATTERNS)
-
-
-def _get_rettiwt_key():
-    key = os.environ.get("API_KEY", "") or os.environ.get("RETTIWT_API_KEY", "")
-    if not key and os.path.exists(RETTIWT_ENV):
-        with open(RETTIWT_ENV) as f:
-            for line in f:
-                if line.startswith("API_KEY=") or line.startswith("RETTIWT_API_KEY="):
-                    key = line.strip().split("=", 1)[1]
-                    break
-    if not key:
-        alt_key_path = "/home/ubuntu/hermesfull/scripts/.rettiwt_key"
-        if os.path.exists(alt_key_path):
-            with open(alt_key_path) as f:
-                key = f.read().strip()
-    return key
 
 
 def fetch_recent_tweets(handle, user_id=None, count=5):

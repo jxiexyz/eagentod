@@ -2,10 +2,8 @@
 """
 x_native.py — X/Twitter actions via native GraphQL API (HTTP only, NO BROWSER).
 
-Pengganti rettiwt-api yang sudah mati (REST v1.1 di-deprecate X, semua balikin
-{"errors":[{"code":34}]} -> wrapper lama print "{}" palsu).
-
-Cookie dibaca dari ~/.hermes/.env_rettiwt (base64: twid;auth_token;ct0).
+Built-in native client using direct Twitter GraphQL endpoints.
+Cookie dibaca dari env var X_COOKIE_KEY atau ~/.hermes/.env_x (base64: twid;auth_token;ct0).
 Query ID di-refresh otomatis dari bundle JS X bila ada yang 404.
 
 Aksi yang didukung:
@@ -32,7 +30,12 @@ BEARER = (
     "AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D"
     "1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA"
 )
-ENV_FILE = os.path.expanduser("~/.hermes/.env_rettiwt")
+ENV_FILES = [
+    os.path.expanduser("~/.hermes/.env_x"),
+    os.path.expanduser("~/.hermes/.env_x_native"),
+    os.path.expanduser("~/.hermes/.env_rettiwt"),  # legacy fallback
+]
+ENV_FILE = ENV_FILES[0]
 UA = (
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -61,18 +64,21 @@ class XError(Exception):
 # ---------------------------------------------------------------- credentials
 
 def load_cookies():
-    """Baca cookie X dari .env_rettiwt (nilai base64)."""
-    if not os.path.exists(ENV_FILE):
-        raise XError(f"file cookie tidak ada: {ENV_FILE}")
-
-    raw_key = None
-    for line in open(ENV_FILE):
-        line = line.strip()
-        if line.startswith("API_KEY=") or line.startswith("RETTIWT_API_KEY="):
-            raw_key = line.split("=", 1)[1].strip()
-            break
+    """Baca cookie X (nilai base64) dari env var atau file config."""
+    raw_key = os.environ.get("X_COOKIE_KEY") or os.environ.get("API_KEY")
     if not raw_key:
-        raise XError("API_KEY tidak ditemukan di .env_rettiwt")
+        for fpath in ENV_FILES:
+            if os.path.exists(fpath):
+                for line in open(fpath):
+                    line = line.strip()
+                    if line.startswith("X_COOKIE_KEY=") or line.startswith("API_KEY=") or line.startswith("RETTIWT_API_KEY="):
+                        raw_key = line.split("=", 1)[1].strip()
+                        break
+            if raw_key:
+                break
+
+    if not raw_key:
+        raise XError("X_COOKIE_KEY atau API_KEY tidak ditemukan di environment atau file config ~/.hermes/.env_x")
 
     try:
         decoded = base64.b64decode(raw_key).decode("utf-8", errors="replace")
