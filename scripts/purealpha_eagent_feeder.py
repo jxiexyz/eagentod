@@ -281,10 +281,8 @@ def main():
                         "followers": t.get("followers", 0),
                         "insiders": t.get("insiders", 0),
                         "smart_followers": t.get("smart_followers", []),
-                        "moni_smart_count": t.get("moni_smart_count", t.get("fr_smart_count", 0)),
-                        "moni_wallets": t.get("moni_wallets", t.get("fr_wallets", {})),
-                        "fr_smart_count": t.get("moni_smart_count", t.get("fr_smart_count", 0)),
-                        "fr_wallets": t.get("moni_wallets", t.get("fr_wallets", {})),
+                        "moni_smart_count": t.get("moni_smart_count", 0),
+                        "moni_wallets": t.get("moni_wallets", {}),
                         "summary": t.get("summary", ""),
                         "matched_keywords": t.get("matched_keywords", []),
                         "has_form_url": t.get("has_form_url", False),
@@ -328,13 +326,13 @@ def main():
         for i, t in enumerate(tasks, 1):
             kw_str = ", ".join(t["matched_keywords"]) if t.get("matched_keywords") else "form_url_detected"
             feed_label = "985monitor" if "985" in t.get("source_feed", "") else "PureAlpha"
-            sf_count = t.get("moni_smart_count", t.get("fr_smart_count", "?"))
+            sf_count = t.get("moni_smart_count", "?")
             print(f"[{i}] @{t['handle']} ({t.get('name','')}) [{feed_label}]")
             print(f"    Followers: {t.get('followers',0)} | Insiders: {t.get('insiders',0)} | MoniSF: {sf_count}")
             if t.get("smart_followers"):
                 sf_str = ", ".join(f"@{s}" for s in t["smart_followers"][:5])
                 print(f"    SmartFollower: {sf_str}")
-            wallets = t.get("moni_wallets", t.get("fr_wallets", {}))
+            wallets = t.get("moni_wallets", {})
             if wallets:
                 wl_str = ", ".join(f"{k}:{v[:10]}..." for k, v in wallets.items())
                 print(f"    Wallets: {wl_str}")
@@ -371,12 +369,8 @@ def _moni_validate(handle, followers=0, is_project=True, is_ct_giveaway=False):
                        "username_changes": 0, "old_usernames": [], "wallets": {}}
 
 
-# Alias for backward-compat
-_frontrun_validate = _moni_validate
-
-
 def _scan_candidates():
-    """Scan PureAlpha + 985monitor, validate via Frontrun trust gate, return actionable tasks (max 5)."""
+    """Scan PureAlpha + 985monitor, validate via Moni trust gate, return actionable tasks (max 5)."""
     state = load_eagent_state()
     seen_handles = set()
     items = []
@@ -508,8 +502,6 @@ def _scan_candidates():
             "smart_followers": merged_sf,
             "moni_smart_count": moni_result.get("smart_follower_count", 0),
             "moni_wallets": moni_wallets,
-            "fr_smart_count": moni_result.get("smart_follower_count", 0),
-            "fr_wallets": moni_wallets,
             "summary": summary[:200],
             "matched_keywords": matched_kw[:3],
             "has_form_url": has_form,

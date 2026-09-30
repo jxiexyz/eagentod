@@ -6,18 +6,18 @@ description: "SOP for fully autonomous LLM-driven airdrop scanner and executor"
 
 Run as an autonomous LLM agent within a cron job. Task: **read PureAlpha-sourced targets, evaluate, strictly filter, and execute** waitlists, whitelists, and early access opportunities.
 
-## DATA SOURCE: PUREALPHA & 985MONITOR FEED + FRONTRUN TRUST GATE
+## DATA SOURCE: PUREALPHA & 985MONITOR FEED + MONI TRUST GATE
 - **Script**: `purealpha_eagent_feeder.py` feeds pre-filtered candidates dari:
   * PureAlpha hot feed (10m, 1h, 3h, 24h window).
   * 985monitor.xyz live event feed (`/api/twitter-live-events` smart follower stream + `/api/new-arrivals`).
   * **Smart Follower / KOL Live Stream**: Tweet langsung dari smart follower/KOL yang ngadain atau nge-quote giveaway, WL NFT, GTD spot, free mint, atau tweet drop address.
-- **Frontrun Trust Gate** (`frontrun_trust_gate.py`): Setiap kandidat di-validasi via Frontrun Pro REST API sebelum masuk queue:
-  * **Projek**: Follower <1k min 3 smart followers (>=1k min 5 SF), 0 ganti username (zero tolerance rebrand).
-  * **CT Giveaway**: Min 100 smart followers, max 1x ganti username.
-  * `get_wallets()` → auto-detect chain (SOL/EVM) untuk reply drop address
-  * Fail-open: kalau Frontrun down, kandidat tetap lolos (graceful degradation)
-  * Cache 1 jam per handle di `frontrun_trust_cache.json`
-- **Enriched Queue Fields**: `fr_smart_count` (jumlah smart follower dari Frontrun), `fr_wallets` (dict chain→address project), `smart_followers` (merged dari feeder + Frontrun)
+- **Moni Trust Gate** (`moni_trust_gate.py`): Setiap kandidat di-validasi via Moni API (public, no-auth) sebelum masuk queue:
+  * Proj <1k fol: min 3 smart followers, 0 username change
+  * Proj >=1k fol: min 5 smart followers, 0 username change
+  * CT giveaway (KOL/person tweet): min 100 smart followers, max 1 username change
+  * Fail-open: kalau Moni down, kandidat tetap lolos (graceful degradation)
+  * Cache 1 jam per handle di `moni_trust_cache.json`
+- **Enriched Queue Fields**: `moni_smart_count` (jumlah smart follower dari Moni), `moni_wallets`, `smart_followers` (merged dari feeder + Moni)
 - **Filter keywords**: drop address, leave address, paste address, comment address, reply address, WL, whitelist, waitlist, GTD, free mint, freemint, GTD mint, WL mint, NFT whitelist, ZEC NFT, Zcash NFT, Zeckers, Zecfrogs, Zecbit, Arc whitelist, Arc NFT, form URLs (Google Form, Typeform, Tally, Premint, Subber, Alphabot, etc.)
 - **Output**: Structured task list with handle, name, followers, insiders, matched keywords, summary, feed source, direct tweet text & ID jika dari smart follower.
 - **If "NO_TASKS"**: Cycle ends immediately. No action needed.
